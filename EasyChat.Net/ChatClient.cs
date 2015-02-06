@@ -67,6 +67,8 @@ namespace Variel.EasyChat
             _reader = new StreamReader(_stream);
             _writer = new StreamWriter(_stream);
             _dataThread = new Thread(DataReceive);
+            _dataThread.IsBackground = true;
+            _dataThread.Start();
         }
 
         public void Send(string message)
@@ -88,24 +90,31 @@ namespace Variel.EasyChat
 
         private void DataReceive()
         {
-            string data;
-            MessageReceiveDelegate tmpReceive;
-
             while(Connected)
             {
                 try
                 {
-                    data = _reader.ReadLine();
-
-                    tmpReceive = Receive;
+                    var data = _reader.ReadLine();
+                    var tmpReceive = Receive;
                     if (tmpReceive != null)
-                        tmpReceive(this, data);
+                    {
+                        _syncContext.Send(_ =>
+                        {
+                            tmpReceive(this, data);
+                        }, null);
+                    }
                 }
                 catch(IOException)
                 {
                     
                 }
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            _dataThread.Abort();
         }
     }
 }
